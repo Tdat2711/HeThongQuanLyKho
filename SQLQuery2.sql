@@ -92,32 +92,73 @@ INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai) VALUES
 -- Phiếu nhập (20 phiếu) & Phiếu xuất (20 phiếu)
 -- ((( 1 người làm ))) --- Truy vấn thống kê và View
 -- TRUY VẤN CƠ BẢN & THỐNG KÊ
--- Liệt kê mặt hàng tồn kho > 100
+-- 1. Lập danh sách các mặt hàng và số lượng đang còn trong kho
+SELECT MaHang, TenHang, SoLuongTon FROM HangHoa;
+
+-- 2. Tìm kiếm mặt hàng theo tên hàng, ngày nhập hoặc nơi sản xuất
+SELECT DISTINCT h.MaHang, h.TenHang, h.NoiSanXuat
+FROM HangHoa h
+JOIN ChiTietPhieuNhap ctn ON h.MaHang = ctn.MaHang
+JOIN PhieuNhap pn ON ctn.SoPhieuNhap = pn.SoPhieuNhap
+WHERE h.TenHang LIKE N'%Tên_Hàng%' 
+   OR h.NoiSanXuat = N'%Nơi_Sản_Xuất%'
+   OR pn.NgayNhap = '2026-04-17';
+
+-- 3. Tìm kiếm các mặt hàng xuất theo ngày, tháng, năm cụ thể
+SELECT h.TenHang, ctx.SoLuongXuat, px.NgayXuat
+FROM ChiTietPhieuXuat ctx
+JOIN PhieuXuat px ON ctx.SoPhieuXuat = px.SoPhieuXuat
+JOIN HangHoa h ON ctx.MaHang = h.MaHang
+WHERE px.NgayXuat = '2026-04-17';
+
+-- 4. Lập danh sách các mặt hàng tồn kho với số lượng > 100
 SELECT * FROM HangHoa WHERE SoLuongTon > 100;
 
--- Tính tổng giá trị nhập kho của từng mặt hàng
-SELECT MaHang, SUM(SoLuongNhap * DonGiaNhap) AS TongGiaTriNhap 
-FROM ChiTietPhieuNhap GROUP BY MaHang;
+-- 5. Doanh thu bán ra theo tháng/năm của từng loại mặt hàng
+SELECT h.TenHang, MONTH(px.NgayXuat) AS Thang, YEAR(px.NgayXuat) AS Nam,
+       SUM(ctx.SoLuongXuat * ctx.DonGiaXuat) AS DoanhThu
+FROM ChiTietPhieuXuat ctx
+JOIN PhieuXuat px ON ctx.SoPhieuXuat = px.SoPhieuXuat
+JOIN HangHoa h ON ctx.MaHang = h.MaHang
+GROUP BY h.TenHang, MONTH(px.NgayXuat), YEAR(px.NgayXuat);
 
--- THỰC HIỆN 03 VIEW
--- View 1: Danh sách hàng đang tồn kho thực tế
+-- 6. Mặt hàng có số lượng nhập/xuất lớn nhất (Top 1)
+SELECT TOP 1 MaHang, SUM(SoLuongNhap) AS TongNhap FROM ChiTietPhieuNhap GROUP BY MaHang ORDER BY TongNhap DESC;
+SELECT TOP 1 MaHang, SUM(SoLuongXuat) AS TongXuat FROM ChiTietPhieuXuat GROUP BY MaHang ORDER BY TongXuat DESC;
+
+-- 7. Danh sách các mặt hàng không bán được trong tháng hiện tại
+SELECT MaHang, TenHang FROM HangHoa
+WHERE MaHang NOT IN (
+    SELECT DISTINCT ctx.MaHang 
+    FROM ChiTietPhieuXuat ctx 
+    JOIN PhieuXuat px ON ctx.SoPhieuXuat = px.SoPhieuXuat
+    WHERE MONTH(px.NgayXuat) = MONTH(GETDATE()) AND YEAR(px.NgayXuat) = YEAR(GETDATE())
+);
+
+
+-- THỰC HIỆN 03 VIEW (Tối ưu theo yêu cầu doanh nghiệp)
+
+-- View 1: Danh sách hàng đang tồn kho thực tế và nơi sản xuất
 CREATE VIEW View_TonKhoHienTai AS
-SELECT MaHang, TenHang, SoLuongTon, NoiSanXuat FROM HangHoa;
+SELECT MaHang, TenHang, SoLuongTon, NoiSanXuat 
+FROM HangHoa;
 GO
 
--- View 2: Doanh thu bán hàng theo tháng
+-- View 2: Báo cáo doanh thu chi tiết theo tháng và năm
 CREATE VIEW View_DoanhThuTheoThang AS
-SELECT MONTH(px.NgayXuat) AS Thang, YEAR(px.NgayXuat) AS Nam, SUM(ctx.SoLuongXuat * ctx.DonGiaXuat) AS DoanhThu
-FROM PhieuXuat px JOIN ChiTietPhieuXuat ctx ON px.SoPhieuXuat = ctx.SoPhieuXuat
+SELECT MONTH(px.NgayXuat) AS Thang, YEAR(px.NgayXuat) AS Nam, 
+       SUM(ctx.SoLuongXuat * ctx.DonGiaXuat) AS TongDoanhThu
+FROM PhieuXuat px 
+JOIN ChiTietPhieuXuat ctx ON px.SoPhieuXuat = ctx.SoPhieuXuat
 GROUP BY MONTH(px.NgayXuat), YEAR(px.NgayXuat);
 GO
 
--- View 3: Danh sách khách hàng và tổng số tiền đã mua
-CREATE VIEW View_KhachHangMuaNhieu AS
-SELECT k.MaKH, k.TenKH, SUM(ctx.SoLuongXuat * ctx.DonGiaXuat) AS TongTienMua
-FROM KhachHang k JOIN PhieuXuat px ON k.MaKH = px.MaKH
-JOIN ChiTietPhieuXuat ctx ON px.SoPhieuXuat = ctx.SoPhieuXuat
-GROUP BY k.MaKH, k.TenKH;
+-- View 3: Thống kê tổng hợp Nhập - Xuất của từng mặt hàng
+CREATE VIEW View_ThongKeXuatNhap AS
+SELECT h.MaHang, h.TenHang, 
+       ISNULL((SELECT SUM(SoLuongNhap) FROM ChiTietPhieuNhap WHERE MaHang = h.MaHang), 0) AS TongNhap,
+       ISNULL((SELECT SUM(SoLuongXuat) FROM ChiTietPhieuXuat WHERE MaHang = h.MaHang), 0) AS TongXuat
+FROM HangHoa h;
 GO
 
 ---((( 1 người làm ))) -- Stored Procedure và Function
