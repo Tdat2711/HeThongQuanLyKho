@@ -90,7 +90,6 @@ INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai) VALUES
 ('K19', N'Công ty Hưng Thịnh', N'Bình Dương', '0274333222'), ('K20', N'Cửa hàng thực phẩm Sạch', N'Vũng Tàu', '0254333111');
 
 -- Phiếu nhập (20 phiếu) & Phiếu xuất (20 phiếu)
--- ((( 1 người làm ))) --- Truy vấn thống kê và View
 -- TRUY VẤN CƠ BẢN & THỐNG KÊ
 -- 1. Lập danh sách các mặt hàng và số lượng đang còn trong kho
 SELECT MaHang, TenHang, SoLuongTon FROM HangHoa;
