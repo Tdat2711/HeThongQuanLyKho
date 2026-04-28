@@ -354,3 +354,9 @@ VALUES ('PX_TEST', 'H02', 20, 32000);
 -- xem lại hanghoa
 SELECT MaHang, TenHang, SoLuongTon FROM HangHoa WHERE MaHang = 'H02';
 GO
+
+
+
+-- NHẬN XÉT
+--Hệ thống hoạt động tốt, tự động hóa cập nhật tồn kho, 
+-- báo cáo sạch sẽ, không lỗi định danh, ngày tháng gọn gàng.
